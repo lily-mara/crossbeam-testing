@@ -16,14 +16,21 @@ fn run_thread_count(threads: usize, mut lines: impl 'static + Send + Iterator<It
 
             loop {
                 let start = Instant::now();
-                let line = match lines.next() {
-                    Some(line) => line,
-                    None => break,
-                };
+                let mut chunk = Vec::with_capacity(100);
+                for _ in 0..100 {
+                    let line = match lines.next() {
+                        Some(line) => line,
+                        None => break,
+                    };
+                    chunk.push(line);
+                }
                 io_time += start.elapsed();
+                if chunk.is_empty() {
+                    break;
+                }
 
                 let start = Instant::now();
-                line_tx.send(line).unwrap();
+                line_tx.send(chunk).unwrap();
                 send_time += start.elapsed();
             }
 
@@ -46,10 +53,12 @@ fn run_thread_count(threads: usize, mut lines: impl 'static + Send + Iterator<It
             .spawn(move || {
                 let mut count = 0;
 
-                for x in line_rx {
-                    for c in x.chars() {
-                        if c == '9' {
-                            count += 1;
+                for chunk in line_rx {
+                    for x in chunk {
+                        for c in x.chars() {
+                            if c == '9' {
+                                count += 1;
+                            }
                         }
                     }
                 }
